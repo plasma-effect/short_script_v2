@@ -32,5 +32,8 @@
     <ClInclude Include="..\..\short_script\syntax.hpp">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\short_script\generic_data_type.hpp">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

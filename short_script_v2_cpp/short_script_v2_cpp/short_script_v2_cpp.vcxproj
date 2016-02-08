@@ -154,6 +154,7 @@
     <ClCompile Include="..\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\short_script\generic_data_type.hpp" />
     <ClInclude Include="..\..\short_script\syntax.hpp" />
     <ClInclude Include="..\..\short_script\token_tree.hpp" />
     <ClInclude Include="..\..\short_script\utility.hpp" />

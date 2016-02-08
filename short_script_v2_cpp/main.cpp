@@ -1,13 +1,14 @@
-#include<short_script/utility.hpp>
+#include<short_script/token_tree.hpp>
 
 int main()
 {
+	typedef short_script_v2::utility::code_data<char> code_data;
 	typedef short_script_v2::utility::basic_string<char> string;
-	string str = "test";
-	std::cout << str << std::endl;
+	typedef short_script_v2::token_trait::token_tree<char> token_tree;
 
-	string str2;
-	std::cout << str2 << std::endl;
-	str2 = "test";
-	std::cout << (str == str2) << std::endl;
+	string filename = "test.txt";
+	auto token = short_script_v2::token_trait::make_token(
+		short_script_v2::utility::make_code_data(0, 0, filename),
+		"hoge");
+	std::cout << (*short_script_v2::token_trait::get_token(token)) << std::endl;
 }
