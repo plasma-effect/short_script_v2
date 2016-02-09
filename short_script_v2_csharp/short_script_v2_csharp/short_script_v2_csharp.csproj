@@ -41,7 +41,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CodeData.cs" />
+    <Compile Include="Exception.cs" />
     <Compile Include="Expression.cs" />
+    <Compile Include="InternalFunction.cs" />
+    <Compile Include="ScriptRunner.cs" />
+    <Compile Include="SystemFunction.cs" />
     <Compile Include="Syntax.cs" />
     <Compile Include="TokenTree.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
