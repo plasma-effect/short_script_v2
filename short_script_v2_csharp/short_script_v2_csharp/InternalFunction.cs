@@ -9,6 +9,7 @@ namespace ShortScriptV2
     public abstract class IFunction
     {
         public abstract dynamic Call(dynamic[] argument, CodeData data);
+        public abstract dynamic StaticCall(dynamic[] argument, CodeData data);
         public abstract int ArgumentLength { get; }
         public abstract string Name { get; }
     }
@@ -19,6 +20,7 @@ namespace ShortScriptV2
         string argument_message;
         string running_message;
         Func<Return> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -52,12 +54,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, Return> : IFunction
@@ -65,7 +73,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, Return> func;
+        Func<Return, T0> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -85,8 +94,8 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 1
-|| !(argument[0] is T0))
+            if (argument.Length != 1 ||
+                !(argument[0] is T0))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -100,12 +109,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, Return> : IFunction
@@ -113,7 +128,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, Return> func;
+        Func<Return, T0, T1> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -133,9 +149,9 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 2
-|| !(argument[0] is T0)
-|| !(argument[1] is T1))
+            if (argument.Length != 2 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -149,12 +165,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, Return> : IFunction
@@ -162,7 +184,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, Return> func;
+        Func<Return, T0, T1, T2> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -182,10 +205,10 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 3
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2))
+            if (argument.Length != 3 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -199,12 +222,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, T3, Return> : IFunction
@@ -212,7 +241,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, T3, Return> func;
+        Func<Return, T0, T1, T2, T3> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -232,11 +262,11 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 4
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2)
-|| !(argument[3] is T3))
+            if (argument.Length != 4 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2) ||
+                !(argument[3] is T3))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -250,12 +280,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, T3, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2, T3> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, T3, T4, Return> : IFunction
@@ -263,7 +299,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, T3, T4, Return> func;
+        Func<Return, T0, T1, T2, T3, T4> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -283,12 +320,12 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 5
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2)
-|| !(argument[3] is T3)
-|| !(argument[4] is T4))
+            if (argument.Length != 5 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2) ||
+                !(argument[3] is T3) ||
+                !(argument[4] is T4))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -302,12 +339,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, T3, T4, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2, T3, T4> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, T3, T4, T5, Return> : IFunction
@@ -315,7 +358,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, T3, T4, T5, Return> func;
+        Func<Return, T0, T1, T2, T3, T4, T5> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -335,13 +379,13 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 6
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2)
-|| !(argument[3] is T3)
-|| !(argument[4] is T4)
-|| !(argument[5] is T5))
+            if (argument.Length != 6 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2) ||
+                !(argument[3] is T3) ||
+                !(argument[4] is T4) ||
+                !(argument[5] is T5))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -355,12 +399,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, T3, T4, T5, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2, T3, T4, T5> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, T3, T4, T5, T6, Return> : IFunction
@@ -368,7 +418,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, T3, T4, T5, T6, Return> func;
+        Func<Return, T0, T1, T2, T3, T4, T5, T6> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -388,14 +439,14 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 7
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2)
-|| !(argument[3] is T3)
-|| !(argument[4] is T4)
-|| !(argument[5] is T5)
-|| !(argument[6] is T6))
+            if (argument.Length != 7 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2) ||
+                !(argument[3] is T3) ||
+                !(argument[4] is T4) ||
+                !(argument[5] is T5) ||
+                !(argument[6] is T6))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -409,12 +460,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, T3, T4, T5, T6, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2, T3, T4, T5, T6> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, T3, T4, T5, T6, T7, Return> : IFunction
@@ -422,7 +479,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, T3, T4, T5, T6, T7, Return> func;
+        Func<Return, T0, T1, T2, T3, T4, T5, T6, T7> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -442,15 +500,15 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 8
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2)
-|| !(argument[3] is T3)
-|| !(argument[4] is T4)
-|| !(argument[5] is T5)
-|| !(argument[6] is T6)
-|| !(argument[7] is T7))
+            if (argument.Length != 8 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2) ||
+                !(argument[3] is T3) ||
+                !(argument[4] is T4) ||
+                !(argument[5] is T5) ||
+                !(argument[6] is T6) ||
+                !(argument[7] is T7))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -464,12 +522,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, T3, T4, T5, T6, T7, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2, T3, T4, T5, T6, T7> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, T3, T4, T5, T6, T7, T8, Return> : IFunction
@@ -477,7 +541,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, T3, T4, T5, T6, T7, T8, Return> func;
+        Func<Return, T0, T1, T2, T3, T4, T5, T6, T7, T8> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -497,16 +562,16 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 9
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2)
-|| !(argument[3] is T3)
-|| !(argument[4] is T4)
-|| !(argument[5] is T5)
-|| !(argument[6] is T6)
-|| !(argument[7] is T7)
-|| !(argument[8] is T8))
+            if (argument.Length != 9 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2) ||
+                !(argument[3] is T3) ||
+                !(argument[4] is T4) ||
+                !(argument[5] is T5) ||
+                !(argument[6] is T6) ||
+                !(argument[7] is T7) ||
+                !(argument[8] is T8))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -520,12 +585,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, T3, T4, T5, T6, T7, T8, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2, T3, T4, T5, T6, T7, T8> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class InternalFunction<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Return> : IFunction
@@ -533,7 +604,8 @@ namespace ShortScriptV2
         string name;
         string argument_message;
         string running_message;
-        Func<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Return> func;
+        Func<Return, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -553,17 +625,17 @@ namespace ShortScriptV2
 
         public override dynamic Call(dynamic[] argument, CodeData data)
         {
-            if (argument.Length != 10
-|| !(argument[0] is T0)
-|| !(argument[1] is T1)
-|| !(argument[2] is T2)
-|| !(argument[3] is T3)
-|| !(argument[4] is T4)
-|| !(argument[5] is T5)
-|| !(argument[6] is T6)
-|| !(argument[7] is T7)
-|| !(argument[8] is T8)
-|| !(argument[9] is T9))
+            if (argument.Length != 10 ||
+                !(argument[0] is T0) ||
+                !(argument[1] is T1) ||
+                !(argument[2] is T2) ||
+                !(argument[3] is T3) ||
+                !(argument[4] is T4) ||
+                !(argument[5] is T5) ||
+                !(argument[6] is T6) ||
+                !(argument[7] is T7) ||
+                !(argument[8] is T8) ||
+                !(argument[9] is T9))
             {
                 throw new InnerException(data.ExceptionMessage(argument_message));
             }
@@ -577,12 +649,18 @@ namespace ShortScriptV2
             }
         }
 
-        public InternalFunction(string name, Func<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Return> func, string argument_message = "Argument Type Error", string running_message = "Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public InternalFunction(string name, Func<Return, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     public class VariadicFunction<T, Return> : IFunction
@@ -591,6 +669,7 @@ namespace ShortScriptV2
         string argument_message;
         string running_message;
         Func<T[], Return> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -627,12 +706,18 @@ namespace ShortScriptV2
             }
         }
 
-        public VariadicFunction(string name, Func<T[],Return> func, string argument_message="Argument Type Error",string running_message="Running Error")
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public VariadicFunction(string name, Func<T[], Return> func, bool can_static_call = false, string argument_message = "Argument Type Error", string running_message = "Running Error")
         {
             this.name = name;
             this.argument_message = argument_message;
             this.running_message = running_message;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
     
@@ -641,6 +726,7 @@ namespace ShortScriptV2
         string name;
         int argument_length;
         Func<dynamic[], CodeData, dynamic> func;
+        bool can_static_call;
 
         public override int ArgumentLength
         {
@@ -663,11 +749,75 @@ namespace ShortScriptV2
             return func(argument, data);
         }
 
-        public NonAssistedFunction(string name,Func<dynamic[],CodeData,dynamic> func, int argument_length=0)
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return can_static_call ? Call(argument, data) : null;
+        }
+
+        public NonAssistedFunction(string name, Func<dynamic[], CodeData, dynamic> func, bool can_static_call, int argument_length = 1)
         {
             this.name = name;
             this.argument_length = argument_length;
             this.func = func;
+            this.can_static_call = can_static_call;
         }
     }
+
+    public class UserDefinedFunction : IFunction
+    {
+        string name;
+        IEnumerable<string> argument_name;
+        Sentence start;
+        ScriptRunner runner;
+
+        public override int ArgumentLength
+        {
+            get
+            {
+                return argument_name.Count();
+            }
+        }
+
+        public override string Name
+        {
+            get
+            {
+                return name;
+            }
+        }
+
+        public override dynamic Call(dynamic[] argument, CodeData data)
+        {
+            var a = ArgumentLength;
+            if (argument.Length < a)
+            {
+                throw new InnerException(data.ExceptionMessage(string.Format("too few arguments to function '{0}'", name)));
+            }
+            else if (argument.Length > a)
+            {
+                throw new InnerException(data.ExceptionMessage(string.Format("too many arguments to function '{0}'", name)));
+            }
+            int i = 0;
+            Dictionary<string, dynamic> local = new Dictionary<string, dynamic>();
+            foreach(var n in argument_name)
+            {
+                local.Add(n, argument[i++]);
+            }
+            return start.Run(local, runner);
+        }
+
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return null;
+        }
+
+        public UserDefinedFunction(string name, IEnumerable<string>argument_name, Sentence start, ScriptRunner runner)
+        {
+            this.name = name;
+            this.argument_name = argument_name;
+            this.start = start;
+            this.runner = runner;
+        }
+    }
+
 }
