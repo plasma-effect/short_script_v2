@@ -128,6 +128,7 @@ namespace ShortScriptV2
             {
                 if (str[column] == '"')
                 {
+                    ++column;
                     ret.Add(new Token(str, new CodeData(line, column, filename), ref column, true));
                 }
                 else if (str[column] == '(')

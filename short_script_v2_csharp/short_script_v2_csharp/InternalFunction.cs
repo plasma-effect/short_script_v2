@@ -811,13 +811,414 @@ namespace ShortScriptV2
             return null;
         }
 
-        public UserDefinedFunction(string name, IEnumerable<string>argument_name, Sentence start, ScriptRunner runner)
+        public UserDefinedFunction(string name, IEnumerable<string> argument_name,IEnumerable<TokenTree> source,ScriptRunner runner)
         {
             this.name = name;
             this.argument_name = argument_name;
-            this.start = start;
             this.runner = runner;
+            this.start = MakeSentences(source).Item2;
+        }
+
+        private Tuple<int,Sentence> MakeSentences(IEnumerable<TokenTree> tree)
+        {
+            int i = 0;
+            int skip = 0;
+            var data = tree.First().GetData();
+
+            List<Sentence> sentences = new List<Sentence>();
+
+            foreach (var t in tree)
+            {
+                ++i;
+                if(skip>0)
+                {
+                    --skip;
+                    continue;
+                }
+                var lis = t.GetTree();
+                if (lis.Count == 0)
+                    continue;
+                var top = lis.First().GetToken() ?? Utility.Throw(new InnerException(t.GetData().ExceptionMessage("invalid command"))) as string;
+                if (BreakCommand(top))
+                    break;
+                if (top == "for")
+                {
+                    var s = MakeSentencesFor(lis.Skip(1), tree.Skip(i), t.GetData());
+                    sentences.Add(s.Item2);
+                    skip += s.Item1;
+                    continue;
+                }
+                if (top == "while")
+                {
+                    var s = MakeSentences(tree.Skip(i));
+                    sentences.Add(new While(Expression.MakeExpression(lis.Skip(1), runner, this, t.GetData()), s.Item2, t.GetData()));
+                    skip += s.Item1;
+                    continue;
+                }
+                if (top == "foreach")
+                {
+                    var s = MakeSentenceForeach(lis.Skip(1), tree.Skip(i), t.GetData());
+                    sentences.Add(s.Item2);
+                    skip += s.Item1;
+                    continue;
+                }
+                if (top == "if")
+                {
+                    var s = MakeSentenceIf(lis.Skip(1), tree.Skip(i),t.GetData());
+                    sentences.Add(s.Item2);
+                    skip += s.Item1;
+                    continue;
+                }
+                if(top=="let")
+                {
+                    if (lis.Count < 3)
+                        throw new InnerException(t.GetData().ExceptionMessage("too few argument to 'let'"));
+                    var name = lis[1].GetToken() ?? Utility.Throw(new InnerException(lis[1].GetData().ExceptionMessage("invalid value name.")));
+                    sentences.Add(new Local(name, Expression.MakeExpression(lis.Skip(2), runner, this, t.GetData()), t.GetData()));
+                    continue;
+                }
+                if (top == "global")
+                {
+                    if (lis.Count < 3)
+                        throw new InnerException(t.GetData().ExceptionMessage("too few argument to 'global'"));
+                    var name = lis[1].GetToken() ?? Utility.Throw(new InnerException(lis[1].GetData().ExceptionMessage("invalid value name.")));
+                    sentences.Add(new Local(name, Expression.MakeExpression(lis.Skip(2), runner, this, t.GetData()), t.GetData()));
+                    continue;
+                }
+                if(top=="return")
+                {
+                    sentences.Add(new Return(Expression.MakeExpression(t.GetTree().Skip(1), runner, this, t.GetData()), t.GetData()));
+                    continue;
+                }
+                if (top == "yield_return")
+                {
+                    throw new InnerException(t.GetData().ExceptionMessage("'yield_return' is not allowed in normal function"));
+                }
+                sentences.Add(new Expr(Expression.MakeExpression(t.GetTree(), runner, this, t.GetData()), t.GetData()));
+            }
+            return Tuple.Create(i, new MultiSentence(sentences, data) as Sentence);
+        }
+        
+        private bool BreakCommand(string str)
+        {
+            return str == "next" || str == "loop" || str == "endif" || str == "else" || str == "elif";
+        }
+
+        private Tuple<int, For> MakeSentencesFor(IEnumerable<TokenTree> cond, IEnumerable<TokenTree> source, CodeData data)
+        {
+            if (cond.Count() < 3)
+                throw new InnerException(cond.First().GetData().ExceptionMessage("too few argument to 'for'"));
+
+            var name = cond.First().GetToken() ?? Utility.Throw(new InnerException(cond.First().GetData().ExceptionMessage("invalid name"))) as string;
+            var start = Expression.MakeExpression(cond.Skip(1).First(), runner, this, cond.Skip(1).First().GetData());
+            var end = Expression.MakeExpression(cond.Skip(2).First(), runner, this, cond.Skip(2).First().GetData());
+            var step = cond.Count() == 3 ? new Literal(1, data) : Expression.MakeExpression(cond.Skip(3), runner, this, data);
+            var ss = MakeSentences(source);
+            return Tuple.Create(ss.Item1, new For(ss.Item2, name, start, end, step, data));
+        }
+
+        private Tuple<int, Foreach> MakeSentenceForeach(IEnumerable<TokenTree> cond, IEnumerable<TokenTree> source, CodeData data)
+        {
+            if (cond.Count() < 2)
+                throw new InnerException(cond.First().GetData().ExceptionMessage("too few argument to 'foreach'"));
+
+            var name = cond.First().GetToken() ?? Utility.Throw(new InnerException(cond.First().GetData().ExceptionMessage("invalid name"))) as string;
+            var ienum = Expression.MakeExpression(cond.Skip(1), runner, this, cond.Skip(1).First().GetData());
+            var ss = MakeSentences(source);
+            return Tuple.Create(ss.Item1, new Foreach(name, ss.Item2, ienum, data));
+        }
+
+        private Tuple<int, If> MakeSentenceIf(IEnumerable<TokenTree> cond, IEnumerable<TokenTree> tokentree, CodeData data)
+        {
+            int i = 0;
+            int skip = 0;
+
+            var expr = Expression.MakeExpression(cond, runner, this, data);
+            var ss = MakeSentences(tokentree);
+            skip += ss.Item1;
+
+            List<Tuple<Expression, Sentence>> sentences = new List<Tuple<Expression, Sentence>>();
+            sentences.Add(Tuple.Create(expr, ss.Item2));
+            
+            foreach(var v in tokentree)
+            {
+                ++i;
+                if(skip>0)
+                {
+                    --skip;
+                    continue;
+                }
+
+                var tree = v.GetTree();
+                if (tree.Count == 0)
+                    continue;
+                var top = tree.First().GetToken();
+                if (top == null)
+                    continue;
+                if (top == "else")
+                {
+                    var else_sentence = MakeSentences(tokentree.Skip(i));
+                    return Tuple.Create(i + else_sentence.Item1, new If(sentences, else_sentence.Item2, data));
+                }
+                if (top == "elif")
+                {
+                    var e = Expression.MakeExpression(tree.Skip(1), runner, this, data);
+                    var s = MakeSentences(tokentree.Skip(i));
+                    skip += s.Item1;
+                    sentences.Add(Tuple.Create(e, s.Item2));
+                }
+                if (top == "endif")
+                {
+                    break;
+                }
+            }
+
+            return Tuple.Create(i, new If(sentences, data)); 
         }
     }
 
+    public class UserDefineCoRoutine : IFunction
+    {
+        string name;
+        IEnumerable<string> argument_name;
+        Sentence start;
+        ScriptRunner runner;
+
+        public override int ArgumentLength
+        {
+            get
+            {
+                return argument_name.Count();
+            }
+        }
+
+        public override string Name
+        {
+            get
+            {
+                return name;
+            }
+        }
+
+        public override dynamic Call(dynamic[] argument, CodeData data)
+        {
+            var a = ArgumentLength;
+            if (argument.Length < a)
+            {
+                throw new InnerException(data.ExceptionMessage(string.Format("too few arguments to function '{0}'", name)));
+            }
+            else if (argument.Length > a)
+            {
+                throw new InnerException(data.ExceptionMessage(string.Format("too many arguments to function '{0}'", name)));
+            }
+            int i = 0;
+            Dictionary<string, dynamic> local = new Dictionary<string, dynamic>();
+            foreach (var n in argument_name)
+            {
+                local.Add(n, argument[i++]);
+            }
+            return start.CoRoutineRun(local, runner);
+        }
+
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            return null;
+        }
+
+        public UserDefineCoRoutine(string name, IEnumerable<string> argument_name, IEnumerable<TokenTree> source, ScriptRunner runner)
+        {
+            this.name = name;
+            this.argument_name = argument_name;
+            this.runner = runner;
+            this.start = MakeSentences(source).Item2;
+        }
+
+        private Tuple<int, Sentence> MakeSentences(IEnumerable<TokenTree> tree)
+        {
+            int i = 0;
+            int skip = 0;
+            var data = tree.First().GetData();
+
+            List<Sentence> sentences = new List<Sentence>();
+
+            foreach (var t in tree)
+            {
+                ++i;
+                if (skip > 0)
+                {
+                    --skip;
+                    continue;
+                }
+                var lis = t.GetTree();
+                if (lis.Count == 0)
+                    continue;
+                var top = lis.First().GetToken() ?? Utility.Throw(new InnerException(t.GetData().ExceptionMessage("invalid command"))) as string;
+                if (BreakCommand(top))
+                    break;
+                if (top == "for")
+                {
+                    var s = MakeSentencesFor(lis.Skip(1), tree.Skip(i), t.GetData());
+                    sentences.Add(s.Item2);
+                    skip += s.Item1;
+                    continue;
+                }
+                else if (top == "while")
+                {
+                    var s = MakeSentences(tree.Skip(i));
+                    sentences.Add(new While(Expression.MakeExpression(lis.Skip(1), runner, this, t.GetData()), s.Item2, t.GetData()));
+                    skip += s.Item1;
+                    continue;
+                }
+                else if (top == "foreach")
+                {
+                    var s = MakeSentenceForeach(lis.Skip(1), tree.Skip(i), t.GetData());
+                    sentences.Add(s.Item2);
+                    skip += s.Item1;
+                    continue;
+                }
+                else if (top == "if")
+                {
+                    var s = MakeSentenceIf(lis.Skip(1), tree.Skip(i), t.GetData());
+                    sentences.Add(s.Item2);
+                    skip += s.Item1;
+                    continue;
+                }
+                else if (top == "let")
+                {
+                    if (lis.Count < 3)
+                        throw new InnerException(t.GetData().ExceptionMessage("too few argument to 'let'"));
+                    var name = lis[1].GetToken() ?? Utility.Throw(new InnerException(lis[1].GetData().ExceptionMessage("invalid value name.")));
+                    sentences.Add(new Local(name, Expression.MakeExpression(lis.Skip(2), runner, this, t.GetData()), t.GetData()));
+                    continue;
+                }
+                else if (top == "global")
+                {
+                    if (lis.Count < 3)
+                        throw new InnerException(t.GetData().ExceptionMessage("too few argument to 'global'"));
+                    var name = lis[1].GetToken() ?? Utility.Throw(new InnerException(lis[1].GetData().ExceptionMessage("invalid value name.")));
+                    sentences.Add(new Local(name, Expression.MakeExpression(lis.Skip(2), runner, this, t.GetData()), t.GetData()));
+                    continue;
+                }
+                else if (top == "return")
+                {
+                    sentences.Add(new Return(Expression.MakeExpression(t.GetTree().Skip(1), runner, this, t.GetData()), t.GetData()));
+                    break;
+                }
+                else if (top == "yield_return")
+                {
+                    sentences.Add(new YieldReturn(Expression.MakeExpression(t.GetTree().Skip(1), runner, this, t.GetData()), t.GetData()));
+                    continue;
+                }
+                sentences.Add(new Expr(Expression.MakeExpression(tree, runner, this, t.GetData()), t.GetData()));
+
+            }
+            return Tuple.Create(i, new MultiSentence(sentences, data) as Sentence);
+        }
+
+        private bool BreakCommand(string str)
+        {
+            return str == "next" || str == "loop" || str == "endif" || str == "else" || str == "elif";
+        }
+
+        private Tuple<int, For> MakeSentencesFor(IEnumerable<TokenTree> cond, IEnumerable<TokenTree> source, CodeData data)
+        {
+            if (cond.Count() < 3)
+                throw new InnerException(cond.First().GetData().ExceptionMessage("too few argument to 'for'"));
+
+            var name = cond.First().GetToken() ?? Utility.Throw(new InnerException(cond.First().GetData().ExceptionMessage("invalid name"))) as string;
+            var start = Expression.MakeExpression(cond.Skip(1).First(), runner, this, cond.Skip(1).First().GetData());
+            var end = Expression.MakeExpression(cond.Skip(2).First(), runner, this, cond.Skip(2).First().GetData());
+            var step = cond.Count() == 3 ? new Literal(1, data) : Expression.MakeExpression(cond.Skip(3), runner, this, data);
+            var ss = MakeSentences(source);
+            return Tuple.Create(ss.Item1, new For(ss.Item2, name, start, end, step, data));
+        }
+
+        private Tuple<int, Foreach> MakeSentenceForeach(IEnumerable<TokenTree> cond, IEnumerable<TokenTree> source, CodeData data)
+        {
+            if (cond.Count() < 2)
+                throw new InnerException(cond.First().GetData().ExceptionMessage("too few argument to 'foreach'"));
+
+            var name = cond.First().GetToken() ?? Utility.Throw(new InnerException(cond.First().GetData().ExceptionMessage("invalid name"))) as string;
+            var ienum = Expression.MakeExpression(cond.Skip(1), runner, this, cond.Skip(1).First().GetData());
+            var ss = MakeSentences(source);
+            return Tuple.Create(ss.Item1, new Foreach(name, ss.Item2, ienum, data));
+        }
+
+        private Tuple<int, If> MakeSentenceIf(IEnumerable<TokenTree> cond, IEnumerable<TokenTree> tokentree, CodeData data)
+        {
+            int i = 0;
+            int skip = 0;
+
+            var expr = Expression.MakeExpression(cond, runner, this, data);
+            var ss = MakeSentences(tokentree);
+            skip += ss.Item1;
+
+            List<Tuple<Expression, Sentence>> sentences = new List<Tuple<Expression, Sentence>>();
+            sentences.Add(Tuple.Create(expr, ss.Item2));
+
+            foreach (var v in tokentree)
+            {
+                ++i;
+                if (skip > 0)
+                {
+                    --skip;
+                    continue;
+                }
+
+                var tree = v.GetTree();
+                if (tree.Count == 0)
+                    continue;
+                var top = tree.First().GetToken();
+                if (top == null)
+                    continue;
+                if (top == "else")
+                {
+                    var else_sentence = MakeSentences(tokentree.Skip(i));
+                    return Tuple.Create(i + else_sentence.Item1, new If(sentences, else_sentence.Item2, data));
+                }
+                if (top == "elif")
+                {
+                    var e = Expression.MakeExpression(tree.Skip(1), runner, this, data);
+                    var s = MakeSentences(tokentree.Skip(i));
+                    skip += s.Item1;
+                    sentences.Add(Tuple.Create(e, s.Item2));
+                }
+                if (top == "endif")
+                {
+                    break;
+                }
+            }
+
+            return Tuple.Create(i, new If(sentences, data));
+        }
+    }
+
+    class NullFunction : IFunction
+    {
+        public override int ArgumentLength
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public override string Name
+        {
+            get
+            {
+                return "";
+            }
+        }
+
+        public override dynamic Call(dynamic[] argument, CodeData data)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override dynamic StaticCall(dynamic[] argument, CodeData data)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

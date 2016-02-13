@@ -81,25 +81,87 @@ namespace ShortScriptV2
             this.constant_value = default_constant;
             this.literal_checker = literal_checker;
             var trees = source_code.Select((t, index) => new Tree(t, index, filename) as TokenTree);
+            
             int i = 0;
-            foreach (var t in trees)
+            foreach (var v in trees)
             {
                 ++i;
-                var tree = t.GetTree();
+                var tree = v.GetTree();
                 if (tree.Count == 0)
                     continue;
-                var top = tree.First().GetToken();
-                if (top != "def") continue;
-                if (tree.Count == 1)
-                    throw new InnerException(t.GetData().ExceptionMessage("null function name."));
-                var name = tree.Skip(1).First().GetToken() ?? Utility.Throw(new InnerException(t.GetData().ExceptionMessage("invalid function name."))) as string;
-                List<string> arg = new List<string>();
-                foreach(var u in tree.Skip(2))
+                var top = tree.First().GetToken() ?? Utility.Throw(new InnerException(tree.First().GetData().ExceptionMessage("invalid command")));
+                SFunction func;
+                if (system_command.TryGetValue(top, out func))
                 {
-                    arg.Add(u.GetToken() ?? Utility.Throw(new InnerException("invalid argument name.")) as string);
+                    int l = func.ArgumentLength;
+
+                    if (l == -1)
+                    {
+                        var d = new List<dynamic>();
+                        int u = 0;
+                        foreach (var e in tree.Skip(1))
+                        {
+                            var expr = Expression.MakeExpression(tree.Skip(++u).First(), this, new NullFunction(), e.GetData());
+                            var k = expr.StaticEval(this);
+                            if (k != null)
+                                throw new InnerException(e.GetData().ExceptionMessage("this expression is not constant."));
+                            d.Add(k);
+                        }
+                        func.Call(d.ToArray(), this, tree[0].GetData());
+                    }
+                    else
+                    {
+                        if (tree.Count() <= func.ArgumentLength)
+                            throw new InnerException(top.GetData().ExceptionMessage(string.Format("too few arguments to function '{0}'", func.Name)));
+                        var d = new List<dynamic>();
+                        for (int m = 0; m < func.ArgumentLength - 1; ++m)
+                        {
+                            var tu = tree[m + 1];
+                            var expr = Expression.MakeExpression(tu, this, new NullFunction(), tu.GetData());
+                            var k = expr.StaticEval(this);
+                            if (k != null)
+                                throw new InnerException(tree[m + 1].GetData().ExceptionMessage("this expression is not constant."));
+                            d.Add(k);
+                        }
+                        var t = tree.Skip(func.ArgumentLength);
+                        d.Add(Expression.MakeExpression(t, this, new NullFunction(), t.First().GetData()));
+                        func.Call(d.ToArray(), this, tree[0].GetData());
+                    }
                 }
-                var sentence = Sentence.MakeSentence(trees.Skip(i), this);
-                function.Add(name, new UserDefinedFunction(name, arg, sentence, this));
+
+                if (top == "const")
+                {
+                    if (tree.Count < 3)
+                        throw new InnerException(tree.First().GetData().ExceptionMessage("too few argument to 'const'"));
+                    var name = tree.Skip(1).First().GetToken() ?? Utility.Throw(new InnerException(tree.Skip(1).First().GetData().ExceptionMessage("invalid constant value name"))) as string;
+                    if (this.constant_value.ContainsKey(name))
+                        throw new InnerException(tree.First().GetData().ExceptionMessage(string.Format("constant value '{0}' has been defined", name)));
+                    var val = Expression.MakeExpression(tree.Skip(2), this, new NullFunction(), tree.First().GetData()).StaticEval(this);
+                }
+                if(top=="def")
+                {
+                    if (tree.Count == 1)
+                        throw new InnerException(tree[0].GetData().ExceptionMessage("too few argument to 'def'"));
+                    var name = tree[1].GetToken() ?? Utility.Throw(new InnerException(tree[1].GetData().ExceptionMessage("invalid function name")));
+                    var lis = new List<string>();
+                    foreach (var u in tree.Skip(2))
+                    {
+                        lis.Add(u.GetToken() ?? Utility.Throw(new InnerException(u.GetData().ExceptionMessage("invalid argument name"))));
+                    }
+                    this.function.Add(name, new UserDefinedFunction(name, lis, trees.Skip(i), this));
+                }
+                if(top == "async")
+                {
+                    if (tree.Count == 1)
+                        throw new InnerException(tree[0].GetData().ExceptionMessage("too few argument to 'def'"));
+                    var name = tree[1].GetToken() ?? Utility.Throw(new InnerException(tree[1].GetData().ExceptionMessage("invalid function name")));
+                    var lis = new List<string>();
+                    foreach (var u in tree.Skip(2))
+                    {
+                        lis.Add(u.GetToken() ?? Utility.Throw(new InnerException(u.GetData().ExceptionMessage("invalid argument name"))));
+                    }
+                    this.function.Add(name, new UserDefineCoRoutine(name, lis, trees.Skip(i), this));
+                }
             }
         }
 
@@ -117,9 +179,109 @@ namespace ShortScriptV2
             IEnumerable<string> source_code):
                 this(filename, source_code, DefaultFunction.GetDefaultFunctions(), DefaultFunction.GetDefaultCommand(),DefaultFunction.GetDefaultLiteralChecker())
         {
-
+            
         }
 
+        public ScriptRunner(string filename)
+        {
+            this.filename = filename;
+            this.global = new Dictionary<string, dynamic>();
+            this.function = DefaultFunction.GetDefaultFunctions();
+            this.system_command = DefaultFunction.GetDefaultCommand();
+            this.constant_value = new Dictionary<string, dynamic>();
+            this.literal_checker = DefaultFunction.GetDefaultLiteralChecker();
+            var lis = new List<string>();
+            using (var stream = new System.IO.StreamReader(filename))
+            {
+                while (stream.Peek() >= 0)
+                {
+                    lis.Add(stream.ReadLine());
+                }
+            }
+            var trees = lis.Select((t, index) => new Tree(t, index, filename) as TokenTree);
+            
+            int i = 0;
+            foreach (var v in trees)
+            {
+                ++i;
+                var tree = v.GetTree();
+                if (tree.Count == 0)
+                    continue;
+                var top = tree.First().GetToken() ?? Utility.Throw(new InnerException(tree.First().GetData().ExceptionMessage("invalid command")));
+                SFunction func;
+                if (system_command.TryGetValue(top, out func))
+                {
+                    int l = func.ArgumentLength;
+
+                    if (l == -1)
+                    {
+                        var d = new List<dynamic>();
+                        int u = 0;
+                        foreach (var e in tree.Skip(1))
+                        {
+                            var expr = Expression.MakeExpression(tree.Skip(++u).First(), this, new NullFunction(), e.GetData());
+                            var k = expr.StaticEval(this);
+                            if (k != null)
+                                throw new InnerException(e.GetData().ExceptionMessage("this expression is not constant."));
+                            d.Add(k);
+                        }
+                        func.Call(d.ToArray(), this, tree[0].GetData());
+                    }
+                    else
+                    {
+                        if (tree.Count() <= func.ArgumentLength)
+                            throw new InnerException(top.GetData().ExceptionMessage(string.Format("too few arguments to function '{0}'", func.Name)));
+                        var d = new List<dynamic>();
+                        for (int m = 0; m < func.ArgumentLength - 1; ++m)
+                        {
+                            var tu = tree[m + 1];
+                            var expr = Expression.MakeExpression(tu, this, new NullFunction(), tu.GetData());
+                            var k = expr.StaticEval(this);
+                            if (k != null)
+                                throw new InnerException(tree[m + 1].GetData().ExceptionMessage("this expression is not constant."));
+                            d.Add(k);
+                        }
+                        var t = tree.Skip(func.ArgumentLength);
+                        d.Add(Expression.MakeExpression(t, this, new NullFunction(), t.First().GetData()));
+                        func.Call(d.ToArray(), this, tree[0].GetData());
+                    }
+                }
+
+                if (top == "const")
+                {
+                    if (tree.Count < 3)
+                        throw new InnerException(tree.First().GetData().ExceptionMessage("too few argument to 'const'"));
+                    var name = tree.Skip(1).First().GetToken() ?? Utility.Throw(new InnerException(tree.Skip(1).First().GetData().ExceptionMessage("invalid constant value name"))) as string;
+                    if (this.constant_value.ContainsKey(name))
+                        throw new InnerException(tree.First().GetData().ExceptionMessage(string.Format("constant value '{0}' has been defined", name)));
+                    var val = Expression.MakeExpression(tree.Skip(2), this, new NullFunction(), tree.First().GetData()).StaticEval(this);
+                }
+                if (top == "def")
+                {
+                    if (tree.Count == 1)
+                        throw new InnerException(tree[0].GetData().ExceptionMessage("too few argument to 'def'"));
+                    var name = tree[1].GetToken() ?? Utility.Throw(new InnerException(tree[1].GetData().ExceptionMessage("invalid function name")));
+                    var cas = new List<string>();
+                    foreach (var u in tree.Skip(2))
+                    {
+                        cas.Add(u.GetToken() ?? Utility.Throw(new InnerException(u.GetData().ExceptionMessage("invalid argument name"))));
+                    }
+                    this.function.Add(name, new UserDefinedFunction(name, cas, trees.Skip(i), this));
+                }
+                if (top == "async")
+                {
+                    if (tree.Count == 1)
+                        throw new InnerException(tree[0].GetData().ExceptionMessage("too few argument to 'def'"));
+                    var name = tree[1].GetToken() ?? Utility.Throw(new InnerException(tree[1].GetData().ExceptionMessage("invalid function name")));
+                    var cas = new List<string>();
+                    foreach (var u in tree.Skip(2))
+                    {
+                        cas.Add(u.GetToken() ?? Utility.Throw(new InnerException(u.GetData().ExceptionMessage("invalid argument name"))));
+                    }
+                    this.function.Add(name, new UserDefineCoRoutine(name, cas, trees.Skip(i), this));
+                }
+            }
+        }
         public dynamic Run(string entry_point,dynamic[] varg)
         {
             IFunction func;
@@ -130,43 +292,6 @@ namespace ShortScriptV2
                 func.Call(new dynamic[2] { varg, varg.Length }, new CodeData(0, 0, filename));
         }
 
-        public ScriptRunner(string filename)
-        {
-            var source_code = new List<string>();
-            using (var reader = new System.IO.StreamReader(filename))
-            {
-                while (reader.Peek() >= 0)
-                {
-                    source_code.Add(reader.ReadLine());
-                }
-            }
-            this.filename = filename;
-            this.global = new Dictionary<string, dynamic>();
-            this.function = DefaultFunction.GetDefaultFunctions();
-            this.system_command = DefaultFunction.GetDefaultCommand();
-            this.constant_value = new Dictionary<string, dynamic>();
-            this.literal_checker = DefaultFunction.GetDefaultLiteralChecker();
-            var trees = source_code.Select((t, index) => new Tree(t, index, filename) as TokenTree);
-            int i = 0;
-            foreach (var t in trees)
-            {
-                ++i;
-                var tree = t.GetTree();
-                if (tree.Count == 0)
-                    continue;
-                var top = tree.First().GetToken();
-                if (top != "def") continue;
-                if (tree.Count == 1)
-                    throw new InnerException(t.GetData().ExceptionMessage("null function name."));
-                var name = tree.Skip(1).First().GetToken() ?? Utility.Throw(new InnerException(t.GetData().ExceptionMessage("invalid function name."))) as string;
-                List<string> arg = new List<string>();
-                foreach (var u in tree.Skip(2))
-                {
-                    arg.Add(u.GetToken() ?? Utility.Throw(new InnerException("invalid argument name.")) as string);
-                }
-                var sentence = Sentence.MakeSentence(trees.Skip(i), this);
-                function.Add(name, new UserDefinedFunction(name, arg, sentence, this));
-            }
-        }
+        
     }
 }

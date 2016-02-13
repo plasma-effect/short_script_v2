@@ -6,10 +6,16 @@ using System.Threading.Tasks;
 
 namespace ShortScriptV2
 {
-    public abstract partial class Sentence
+    public abstract class Sentence
     {
         public abstract dynamic Run(Dictionary<string, dynamic> local, ScriptRunner runner);
         public abstract CodeData GetData();
+        public abstract IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner);
+        public override string ToString()
+        {
+            return ToString(0);
+        }
+        public abstract string ToString(int v);
     }
 
     public class MultiSentence : Sentence
@@ -31,6 +37,42 @@ namespace ShortScriptV2
                     return r;
             }
             return null;
+        }
+
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            dynamic v = null;
+            foreach(var s in sentences)
+            {
+                foreach(var r in s.CoRoutineRun(local, runner))
+                {
+                    v = r;
+                    if (YieldReturn.IsYieldValue(r))
+                    {
+                        yield return r;
+                    }
+                    else if(r!=null)
+                    {
+                        goto end;
+                    }
+                }
+            }
+            v = null;
+            end:
+            yield return v;
+        }
+        
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            ret += "multi sentence\n";
+            foreach(var s in sentences)
+            {
+                ret += s.ToString(v + 1) + "\n";
+            }
+            return ret;
         }
 
         public MultiSentence(IEnumerable<Sentence> sentences, CodeData data)
@@ -87,7 +129,75 @@ namespace ShortScriptV2
                 }
             }
             source.Run(local, runner);
+            local.Remove(name);
             return null;
+        }
+
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            if (local.ContainsKey(name))
+                throw new InnerException(data.ExceptionMessage(string.Format("counter value name '{0}' have been be defined.", name)));
+            var las = last.ValueEval(local, runner);
+            var ste = step.ValueEval(local, runner);
+            bool c;
+            dynamic v = null;
+
+            local[name] = first.ValueEval(local, runner);
+            try
+            {
+                c = (local[name] != las);
+            }
+            catch (Exception)
+            {
+                throw new InnerException(data.ExceptionMessage("dynamic type error."));
+            }
+            while (c)
+            {
+                foreach (var r in source.CoRoutineRun(local, runner))
+                {
+                    if (YieldReturn.IsYieldValue(r))
+                    {
+                        yield return r;
+                    }
+                    else if (r != null)
+                    {
+                        v = r;
+                        goto end;
+                    }
+                }
+                try
+                {
+                    local[name] = local[name] + ste;
+                    c = (local[name] != las);
+                }
+                catch (Exception)
+                {
+                    throw new InnerException(data.ExceptionMessage("dynamic type error."));
+                }
+            }
+            foreach(var r in source.CoRoutineRun(local, runner))
+            {
+                if (YieldReturn.IsYieldValue(r))
+                    yield return r;
+                else if (r != null)
+                {
+                    v = r;
+                    goto end;
+                }
+            }
+            v = null;
+            end:
+            local.Remove(name);
+            yield return v;
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            ret += "for:" + first.ToString() + " " + last.ToString() + " " + step.ToString() + "\n";
+            return ret + source.ToString(v + 1) + "\n";
         }
 
         public For(Sentence source,string name,Expression first,Expression last,Expression step,CodeData data)
@@ -140,6 +250,55 @@ namespace ShortScriptV2
             return null;
         }
 
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            bool c;
+            dynamic v = null;
+            try
+            {
+                c = cond.ValueEval(local, runner);
+            }
+            catch (Exception)
+            {
+                throw new InnerException(data.ExceptionMessage("dynamic type error."));
+            }
+            while (c)
+            {
+                foreach (var r in source.CoRoutineRun(local, runner))
+                {
+                    if(YieldReturn.IsYieldValue(r))
+                    {
+                        yield return r;
+                    }
+                    else if (r != null)
+                    {
+                        v = r;
+                        goto end;
+                    }
+                    try
+                    {
+                        c = cond.ValueEval(local, runner);
+                    }
+                    catch (Exception)
+                    {
+                        throw new InnerException(data.ExceptionMessage("dynamic type error."));
+                    }
+                }
+            }
+            v = null;
+            end:
+            yield return v;
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            ret += "while:" + cond.ToString() + "\n";
+            return ret + source.ToString(v + 1) + "\n";
+        }
+
         public While(Expression cond,Sentence source,CodeData data)
         {
             this.data = data;
@@ -180,6 +339,79 @@ namespace ShortScriptV2
             return null;
         }
 
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            dynamic v = null;
+            foreach (var t in sentences)
+            {
+                bool c;
+                try
+                {
+                    c = t.Item1.ValueEval(local, runner);
+                }
+                catch (Exception)
+                {
+                    throw new InnerException(data.ExceptionMessage("dynamic type error."));
+                }
+                if (c)
+                {
+                    foreach(var r in t.Item2.CoRoutineRun(local, runner))
+                    {
+                        if (YieldReturn.IsYieldValue(r))
+                        {
+                            yield return r;
+                        }
+                        else if (r != null)
+                        {
+                            v = r;
+                            goto end;
+                        }
+                    }
+                }
+            }
+            if (else_sentence != null)
+            {
+                foreach (var r in else_sentence.CoRoutineRun(local,runner))
+                {
+                    if (YieldReturn.IsYieldValue(r))
+                    {
+                        yield return r.Value;
+                    }
+                    else if (r != null)
+                    {
+                        v = r;
+                        goto end;
+                    }
+                }
+            }
+            v = null;
+            end:
+            yield return v;
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            ret += "if: " + sentences.Count() + "\n";
+            foreach(var s in sentences)
+            {
+                for (int i = 0; i < v; ++i)
+                    ret += "  ";
+                ret += s.Item1.ToString() + "\n";
+                ret += s.Item2.ToString(v + 1) + "\n";
+            }
+            if(else_sentence!=null)
+            {
+                for (int i = 0; i < v; ++i)
+                    ret += "  ";
+                ret += "else\n";
+                ret += else_sentence.ToString(v + 1) + "\n";
+            }
+            return ret;
+        }
+
         public If(IEnumerable<Tuple<Expression,Sentence>> sentences, Sentence else_sentence,CodeData data)
         {
             this.data = data;
@@ -212,6 +444,20 @@ namespace ShortScriptV2
             return null;
         }
 
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            local[name] = expr.ValueEval(local, runner);
+            yield return null;
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            return ret + "let:" + name + " " + expr.ToString();
+        }
+
         public Local(string name,Expression expr, CodeData data)
         {
             this.data = data;
@@ -237,6 +483,19 @@ namespace ShortScriptV2
             return null;
         }
 
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            return ret + "global:" + name + " " + expr.ToString();
+        }
+
         public Global(string name,Expression expr,CodeData data)
         {
             this.data = data;
@@ -260,7 +519,21 @@ namespace ShortScriptV2
             expr.ValueEval(local, runner);
             return null;
         }
-        
+
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            expr.ValueEval(local, runner);
+            yield return null;
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            return ret += "expr:" + expr.ToString();
+        }
+
         public Expr(Expression expr,CodeData data)
         {
             this.data = data;
@@ -283,6 +556,19 @@ namespace ShortScriptV2
             return expr.ValueEval(local, runner);
         }
 
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            yield return expr.ValueEval(local, runner);
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            return ret + "return:" + expr.ToString();
+        }
+
         public Return(Expression expr,CodeData data)
         {
             this.data = data;
@@ -290,176 +576,148 @@ namespace ShortScriptV2
         }
     }
 
-    public abstract partial class Sentence
+    public class YieldReturn : Sentence
     {
-        public static Sentence MakeSentence(IEnumerable<TokenTree> source_codes, ScriptRunner runner)
+        CodeData data;
+        Expression expr;
+        
+        public class YieldValue
         {
-            return MakeSentenceImpl(source_codes, runner).Item2;
-        }
-
-        private static Tuple<int, Sentence> MakeSentenceImpl(IEnumerable<TokenTree> source_codes,ScriptRunner runner)
-        {
-            int i = 0;
-            int skip = 0;
-            List<Sentence> sentences = new List<Sentence>();
-            var top_d = source_codes.First().GetData();
-            foreach(var v in source_codes)
+            dynamic value;
+            public dynamic Value
             {
-                ++i;
-                if (skip > 0)
+                get
                 {
-                    --skip;
-                    continue;
-                }
-                var tree = v.GetTree();
-                var data = v.GetData();
-                if (tree.Count == 0)
-                    continue;
-                var top = tree.First().GetToken();
-                if (top == null)
-                    throw new InnerException(v.GetData().ExceptionMessage("invalid command name."));
-                SFunction func;
-                if (runner.SystemCommand.TryGetValue(top, out func))
-                {
-                    CallSystemFunction(func, tree.Skip(1), runner, data);
-                    continue;
-                }
-                else if (MakeSentenceImplBreakStatement(top))
-                    break;
-                else if (top == "for")
-                {
-                    if (tree.Count < 4)
-                        throw new InnerException(data.ExceptionMessage("too few argument to 'for'"));
-                    var name = tree.Skip(1).First().GetToken();
-                    if (name == null)
-                        throw new InnerException(data.ExceptionMessage("invalid value name"));
-                    var first = Expression.MakeExpression(tree.Skip(2).First(), runner);
-                    var last = Expression.MakeExpression(tree.Skip(3).First(), runner);
-                    var step = tree.Count == 4 ? new Literal(1, data) : Expression.MakeExpression(tree.Skip(4), runner);
-                    var source = MakeSentenceImpl(source_codes.Skip(i), runner);
-
-                    sentences.Add(new For(source.Item2, name, first, last, step, data));
-                    skip += source.Item1;
-                }
-                else if (top == "while")
-                {
-                    if (tree.Count == 1)
-                        throw new InnerException(data.ExceptionMessage("null expression error."));
-                    var expr = Expression.MakeExpression(tree.Skip(1), runner);
-                    var source = MakeSentenceImpl(source_codes.Skip(i), runner);
-
-                    sentences.Add(new While(expr, source.Item2, data));
-                    skip += source.Item1;
-                }
-                else if (top == "if")
-                {
-                    var s = MakeSentenceIf(tree, runner);
-                    sentences.Add(s.Item2);
-                    skip += s.Item1;
-                }
-                else if (top == "let")
-                {
-                    if (tree.Count < 3)
-                        throw new InnerException(data.ExceptionMessage("too few argument to 'let'"));
-                    var name = tree.Skip(1).First().GetToken() ??
-                        Utility.Throw(new InnerException(data.ExceptionMessage("invalid value name")));
-                    sentences.Add(new Local(name, Expression.MakeExpression(tree.Skip(2), runner), data));
-                }
-                else if (top == "global")
-                {
-                    if (tree.Count < 3)
-                        throw new InnerException(data.ExceptionMessage("too few argument to 'global'"));
-                    var name = tree.Skip(1).First().GetToken() ??
-                        Utility.Throw(new InnerException(data.ExceptionMessage("invalid value name")));
-                    sentences.Add(new Global(name, Expression.MakeExpression(tree.Skip(2), runner), data));
-                }
-                else if(top=="def")
-                {
-                    throw new InnerException(data.ExceptionMessage("don't define function before defend another function."));
-                }
-                else if(top=="return")
-                {
-                    sentences.Add(tree.Count == 1 ? new Return(new Literal(0, data), data) : new Return(Expression.MakeExpression(tree.Skip(1), runner), data));
-                }
-                else
-                {
-                    sentences.Add(new Expr(Expression.MakeExpression(tree, runner), data));
+                    return value;
                 }
             }
-            return new Tuple<int, Sentence>(i, new MultiSentence(sentences, top_d));
-        }
 
-        static private void CallSystemFunction(SFunction func,IEnumerable<TokenTree> tree,ScriptRunner runner,CodeData data)
-        {
-            var e = tree.GetEnumerator();
-            var d = new dynamic[func.ArgumentLength];
-            for (int i = 0; i < func.ArgumentLength - 1; ++i)
+            public YieldValue(dynamic value)
             {
-                d[i] = Expression.MakeExpression(e.Current, runner).StaticEval(runner) ?? Utility.Throw(new InnerException(e.Current.GetData().ExceptionMessage("this exprssion is not usable in a constant expression.")));
-                if (!e.MoveNext())
-                    throw new InnerException(data.ExceptionMessage(string.Format("too few argument to call command '{0}'", func.Name)));
+                this.value = value;
             }
-            d[func.ArgumentLength - 1] = 
-                Expression.MakeExpression(tree.Skip(func.ArgumentLength - 1), runner) ?? 
-                Utility.Throw(new InnerException(e.Current.GetData().ExceptionMessage("this exprssion is not usable in a constant expression.")));
-            func.Call(d, runner, data);
+        }
+        
+        public static bool IsYieldValue(YieldValue v)
+        {
+            return v != null;
         }
 
-        static private bool MakeSentenceImplBreakStatement(string str)
+        public static bool IsYieldValue(dynamic v)
         {
-            return str == "next" || str == "loop" || str == "endif" || str == "else" || str == "elif";
+            return false;
+        }
+        
+        public static dynamic RemoveYield(YieldValue v)
+        {
+            return v != null ? v.Value : null;
         }
 
-        static private Tuple<int,Sentence> MakeSentenceIf(IEnumerable<TokenTree> tree,ScriptRunner runner)
+        public static dynamic RemoveYield(dynamic v)
         {
-            int i = 0;
+            return v;
+        }
 
-            var ret = new List<Tuple<Expression, Sentence>>();
-            
-            var t = tree.First();
-            var t2 = t.GetTree();
-            if (t2.Count == 1)
-                throw new InnerException(t.GetData().ExceptionMessage("null expression error."));
-            var data = t.GetData();
-            var co = Expression.MakeExpression(t2.Skip(1), runner);
-            var se = MakeSentenceImpl(tree.Skip(1), runner);
-            ret.Add(Tuple.Create(co, se.Item2));
-            int skip = se.Item1;
-            foreach(var v in tree)
+        public override CodeData GetData()
+        {
+            return data;
+        }
+
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            yield return new YieldValue(expr.ValueEval(local, runner));
+        }
+
+        public override dynamic Run(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            throw new InnerException(data.ExceptionMessage("yield_return in normal calling is not allowed"));
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            return ret + "yield return:" + expr.ToString();
+        }
+
+        public YieldReturn(Expression expr,CodeData data)
+        {
+            this.data = data;
+            this.expr = expr;
+        }
+    }
+
+    public class Foreach : Sentence
+    {
+        CodeData data;
+        Sentence sentence;
+        Expression expr;
+        string name;
+
+        public override CodeData GetData()
+        {
+            return data;
+        }
+
+        public override dynamic Run(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            if (local.ContainsKey(name))
+                throw new InnerException(data.ExceptionMessage(string.Format("counter value name '{0}' have been be defined.", name)));
+            foreach (var r in expr.ValueEval(local, runner))
             {
-                ++i;
-                if (skip > 0)
-                {
-                    --skip;
-                    continue;
-                }
-                var tree0 = v.GetTree();
-                var top = tree0.First().GetToken();
-                if (top == null)
-                    continue;
-                if (top == "endif")
-                {
-                    return Tuple.Create(i, new If(ret, data) as Sentence);
-                }
-                else if (top == "elif")
-                {
-                    var t_ = v.GetTree();
-                    if (t_.Count == 1)
-                        throw new InnerException(v.GetData().ExceptionMessage("null expression error."));
-                    var data_ = v.GetData();
-                    var co_ = Expression.MakeExpression(t_.Skip(1), runner);
-                    var se_ = MakeSentenceImpl(tree.Skip(i), runner);
-                    ret.Add(Tuple.Create(co_, se_.Item2));
-                    skip += se_.Item1;
-                    continue;
-                }
-                else if (top == "else")
-                {
-                    var s = MakeSentenceImpl(tree.Skip(i), runner);
-                    return Tuple.Create(i + s.Item1, new If(ret, s.Item2, data) as Sentence);
-                }
+                local[name] = YieldReturn.RemoveYield(r);
+                var v = sentence.Run(local, runner);
+                if (v != null)
+                    return v;
             }
-            throw new InnerException(data.ExceptionMessage("terminate of 'if' statements hasn't been "));
+            local.Remove(name);
+            return null;
+        }
+
+        public override IEnumerable<dynamic> CoRoutineRun(Dictionary<string, dynamic> local, ScriptRunner runner)
+        {
+            dynamic v = null;
+            if (local.ContainsKey(name))
+                throw new InnerException(data.ExceptionMessage(string.Format("counter value name '{0}' have been be defined.", name)));
+            foreach (var r in expr.ValueEval(local, runner))
+            {
+                local[name] = r;
+                foreach(var u in sentence.CoRoutineRun(local, runner))
+                {
+                    if (YieldReturn.IsYieldValue(u))
+                    {
+                        yield return u;
+                    }
+                    else if (u != null)
+                    {
+                        v = u;
+                        goto end;
+                    }
+                }
+                
+            }
+            v = null;
+            end:
+            local.Remove(name);
+            yield return v;
+        }
+
+        public override string ToString(int v)
+        {
+            string ret = "";
+            for (int i = 0; i < v; ++i)
+                ret += "  ";
+            ret += "foreach:" + name + " " + expr.ToString() + "\n";
+            return ret + sentence.ToString(v + 1);
+        }
+
+        public Foreach(string name,Sentence sentence,Expression expr,CodeData data)
+        {
+            this.name = name;
+            this.sentence = sentence;
+            this.expr = expr;
+            this.data = data;
         }
     }
 }

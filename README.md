@@ -2,12 +2,55 @@
 Q:What is this ?
 A:short script v2です
 # C++で使いたい
-完成してないです
+完成しないかもしれない
 # .NETで使いたい
 3ステップで簡単short script
 - (1)参照にこのプロジェクトのDLLを追加する
 - (2)ファイル名を渡してコンストラクトする
 - (3)short scriptのソースを書く
+#short scriptのソースの書き方
+基本はLispライク
+```
+#コメントは#で
+def main
+let x 1#ローカル変数はletコマンド
+let y 2
+let z + 1 2#引数からはみ出した分ははみ出した分で一つのExprになる
+println z
+return 0#絶対何かしら返して欲しい
+```
+```
+def func x y
+return + x y
+
+def main
+for i 0 10#iは0から10まで動く
+println func i 2
+next#nextでfor文は終わり
+return 0
+```
+```
+def main
+let x 10
+while > x 0#while文
+println x
+loop#loopで終わり
+return 0
+```
+```
+async func x#コルーチンにするならdefじゃなくてasync
+for i 0 x
+yield_return i#処理を中断しつつ一旦値を返すならyield_return
+next
+return -1#処理を完全に終了させるならreturn
+
+def main
+foreach x func 10#現状foreach文以外でまともに使えない
+println x
+next
+return 0
+```
+
 #ライセンス
 Copyright (c) 2016, plasma-effect
 All rights reserved.
