@@ -8,6 +8,7 @@ A:short script v2です
 - (1)参照にこのプロジェクトのDLLを追加する
 - (2)ファイル名を渡してコンストラクトする
 - (3)short scriptのソースを書く
+
 #short scriptのソースの書き方
 基本はLispライク
 ```
