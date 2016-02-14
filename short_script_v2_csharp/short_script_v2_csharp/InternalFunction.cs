@@ -888,7 +888,7 @@ namespace ShortScriptV2
                 if(top=="return")
                 {
                     sentences.Add(new Return(Expression.MakeExpression(t.GetTree().Skip(1), runner, this, t.GetData()), t.GetData()));
-                    continue;
+                    break;
                 }
                 if (top == "yield_return")
                 {
@@ -935,7 +935,7 @@ namespace ShortScriptV2
 
             var expr = Expression.MakeExpression(cond, runner, this, data);
             var ss = MakeSentences(tokentree);
-            skip += ss.Item1;
+            skip += ss.Item1 - 1;
 
             List<Tuple<Expression, Sentence>> sentences = new List<Tuple<Expression, Sentence>>();
             sentences.Add(Tuple.Create(expr, ss.Item2));
@@ -964,7 +964,7 @@ namespace ShortScriptV2
                 {
                     var e = Expression.MakeExpression(tree.Skip(1), runner, this, data);
                     var s = MakeSentences(tokentree.Skip(i));
-                    skip += s.Item1;
+                    skip += s.Item1 - 1;
                     sentences.Add(Tuple.Create(e, s.Item2));
                 }
                 if (top == "endif")
@@ -1151,7 +1151,7 @@ namespace ShortScriptV2
 
             var expr = Expression.MakeExpression(cond, runner, this, data);
             var ss = MakeSentences(tokentree);
-            skip += ss.Item1;
+            skip += ss.Item1 - 1;
 
             List<Tuple<Expression, Sentence>> sentences = new List<Tuple<Expression, Sentence>>();
             sentences.Add(Tuple.Create(expr, ss.Item2));
@@ -1180,7 +1180,7 @@ namespace ShortScriptV2
                 {
                     var e = Expression.MakeExpression(tree.Skip(1), runner, this, data);
                     var s = MakeSentences(tokentree.Skip(i));
-                    skip += s.Item1;
+                    skip += s.Item1 - 1;
                     sentences.Add(Tuple.Create(e, s.Item2));
                 }
                 if (top == "endif")

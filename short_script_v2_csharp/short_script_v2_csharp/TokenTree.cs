@@ -60,7 +60,7 @@ namespace ShortScriptV2
             int fir = column - (flag ? 1 : 0);
             for(;column<str.Length;++column)
             {
-                if (str[column] == (flag ? '"' : ' ')) 
+                if (flag ? str[column] == '"' : (str[column] == ')' || str[column] == ' ' || str[column] == '#'))
                 {
                     this.token = str.Substring(fir, column - fir + (flag ? 1 : 0));
                     return;
@@ -137,13 +137,15 @@ namespace ShortScriptV2
                     int c = column;
                     ret.Add(new Tree(InitialParse(str, line, ref column, filename), new CodeData(line, c, filename)));
                 }
-                else if (str[column] == ')' || str[column] == '#') 
+                else if (str[column] == ')' || str[column] == '#')
                 {
                     return ret;
                 }
-                else if(str[column]!='\t' && str[column]!=' ')
+                else if (str[column] != '\t' && str[column] != ' ')
                 {
                     ret.Add(new Token(str, new CodeData(line, column, filename), ref column, false));
+                    if (column < str.Length && (str[column] == ')' || str[column] == '#'))
+                        break;
                 }
             }
             return ret;
