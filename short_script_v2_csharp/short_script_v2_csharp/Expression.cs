@@ -146,7 +146,7 @@ namespace ShortScriptV2
             var top = tree.First();
             var name = top.GetToken();
             if (name == null)
-                throw new InnerException(top.GetData().ExceptionMessage("error function name"));
+                return MakeExpression(top.GetTree(), runner, from, data);
             if (from.Name == name)
             {
                 if (from.ArgumentLength == -1)
